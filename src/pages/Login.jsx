@@ -146,7 +146,7 @@ export default function Login() {
                   <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} disabled={busy} />
                   <span>Remember me</span>
                 </label>
-                <span className="ll-muted-link" title="Password reset is enabled after Supabase is connected">Forgot password?</span>
+                <span className="ll-muted-link" title="Contact your workspace administrator to reset your password">Forgot password?</span>
               </div>
 
               <button className="ll-btn" type="submit" disabled={busy}>

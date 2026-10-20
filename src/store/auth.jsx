@@ -6,31 +6,35 @@ const Ctx = createContext(null);
 export const useAdmin = () => useContext(Ctx);
 
 // ------------------------------------------------------------------
-// Dev-only admin credentials (localhost only — NEVER use in production)
-// This allows local development without Supabase configured.
+// Demo admin sign-in — used whenever Supabase is not configured.
+//
+// This is the same sign-in that previously ran on localhost; it now runs on
+// any host so the static Vercel deployment works without Supabase. Override
+// the credentials at build time with VITE_ADMIN_EMAIL / VITE_ADMIN_PASSWORD.
+//
+// SECURITY: Vite inlines these values into the client bundle, so they are not
+// secret. They are demo credentials only — connect Supabase (or move auth to a
+// server-side endpoint) before using this deployment with sensitive data.
 // ------------------------------------------------------------------
-const DEV_ADMIN_EMAIL = 'admin@learnloop.io';
-const DEV_ADMIN_PASSWORD = 'admin123';
+const DEMO_ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'admin@learnloop.io';
+const DEMO_ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'admin123';
 
-const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-// Local dev sign-in only on localhost/127.0.0.1, and only while Supabase is not
-// configured. As soon as VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY are present,
-// real Supabase auth takes over — including locally. Never active in production.
-const isDevMode = isLocalHost && !isSupabaseConfigured;
+// Supabase remains the auth provider when it is configured. Until then the
+// panel uses the demo sign-in above — no Supabase configuration is required.
+const isDemoMode = !isSupabaseConfigured;
 
-async function signInAdminDev({ email, password }) {
+async function signInAdminDemo({ email, password }) {
   const e = String(email || '').trim();
   const p = String(password || '');
   if (!e || !p) throw new Error('Enter your admin email and password.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw new Error('Enter a valid admin email address.');
-  if (e !== DEV_ADMIN_EMAIL || p !== DEV_ADMIN_PASSWORD) {
+  if (e !== DEMO_ADMIN_EMAIL || p !== DEMO_ADMIN_PASSWORD) {
     throw new Error('Invalid admin email or password.');
   }
-  return { id: 'admin_dev_1', email: e, name: 'Admin', role: 'admin' };
+  return { id: 'admin_demo_1', email: e, name: 'Admin', role: 'admin' };
 }
 
-async function signOutAdminDev() {
+async function signOutAdminDemo() {
   return true;
 }
 
@@ -42,9 +46,7 @@ async function signInAdminSupabase({ email, password }) {
   const p = String(password || '');
   if (!e || !p) throw new Error('Enter your admin email and password.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw new Error('Enter a valid admin email address.');
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Admin authentication is not configured yet. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in admin/.env.');
-  }
+  if (!supabase) throw new Error('Sign-in is temporarily unavailable. Please try again.');
   const { data, error } = await supabase.auth.signInWithPassword({ email: e, password: p });
   if (error || !data?.user) {
     if (error && /invalid login credentials/i.test(error.message)) {
@@ -61,7 +63,7 @@ async function signOutAdminSupabase() {
 }
 
 // ------------------------------------------------------------------
-// Auth provider — uses dev mode on localhost, Supabase elsewhere
+// Auth provider — demo sign-in when Supabase is absent, Supabase when present
 // ------------------------------------------------------------------
 export function AdminProvider({ children }) {
   const [admin, setAdmin] = useState(null);
@@ -74,8 +76,8 @@ export function AdminProvider({ children }) {
 
   const login = async (email, password) => {
     let a;
-    if (isDevMode) {
-      a = await signInAdminDev({ email, password });
+    if (isDemoMode) {
+      a = await signInAdminDemo({ email, password });
     } else {
       a = await signInAdminSupabase({ email, password });
     }
@@ -88,7 +90,7 @@ export function AdminProvider({ children }) {
     setAdmin(null);
     localStorage.removeItem(KEY);
     try {
-      if (isDevMode) await signOutAdminDev();
+      if (isDemoMode) await signOutAdminDemo();
       else await signOutAdminSupabase();
     } catch { /* noop */ }
   };
